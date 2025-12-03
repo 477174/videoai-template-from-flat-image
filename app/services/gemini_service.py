@@ -28,12 +28,12 @@ class GeminiService:
     async def isolate_element(
         self, image_data: bytes, element: ElementDescription
     ) -> bytes:
-        """Make the specified element black (saturation 0, lightness 0, alpha 100%)."""
-        prompt = f"""In this design I want you to change the colors of the {element.name} ({element.description}) in the following way:
+        """Put the element in grayscale."""
 
-Set saturation 0;
-Set lightness 0;
-Set alpha 100%;"""
+        prompt = "".join([
+            "In this design I want you to make the following existent element entirely solid black, ",
+            f"in a way it seems just a silhouette, the element is {element.name} ({element.description})."
+        ])
 
         return await self._edit_image(image_data, prompt)
 
@@ -41,7 +41,7 @@ Set alpha 100%;"""
         self, image_data: bytes, element: ElementDescription
     ) -> bytes:
         """Remove the specified element from the image."""
-        prompt = f"From this image, remove the {element.name} ({element.description})"
+        prompt = f"Do a little redraw next to the following element and where it is to make it look like the element was removed, the element is: {element.name} ({element.description})"
 
         return await self._edit_image(image_data, prompt)
 

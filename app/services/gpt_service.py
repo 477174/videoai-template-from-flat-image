@@ -6,12 +6,19 @@ from openai import AsyncOpenAI
 
 from app.models.schemas import ElementDescription
 
-ELEMENT_DESCRIPTION_PROMPT = """You're a very experient designer and I want you to describe for me all the layers you see in this design: I want you to return to me a json that is an array of the following type, relative to any kind of element, shapes, text, icons, images, any kind of visual elements:
+ELEMENT_DESCRIPTION_PROMPT = """
+You're a very experient designer and I want you to describe for me all the layers you see in this design:
+I want you to return to me a json containing all images that was used in the construction of this design.
+You can't be that granular, the elements or group of elements you're going to describe should be chosen by them semantic role in the design.
+Before choosing an element or a group of elements you should think "is this something relevant for a regular user to be able to edit later?".
+
+
 {
-  "type": "text" | "image" | "shape" | "background",
+  "type": "image" | "shape" | "background",
   "name": "A very intuitive name for the element",
-  "description": "A good description about how, what and where is the element in the image"
+  "description": "A very detailed description about how, what and where is the element in the image"
 }
+
 The array of these elements should be ordered by z-index.
 
 IMPORTANT: Return ONLY a valid JSON object with a single key "elements" containing the array. Example:
