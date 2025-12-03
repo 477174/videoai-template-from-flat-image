@@ -16,7 +16,7 @@ Before choosing an element or a group of elements you should think "is this some
 {
   "type": "image" | "shape" | "background",
   "name": "A very intuitive name for the element",
-  "description": "A very detailed description about how, what and where is the element in the image"
+  "description": "This description should be very clear about what and where is the element in the image, should detail exactly what belongs to the element and what not, so later the element can be identified easily in the image. It should include position, colors, size, relation to other elements, etc."
 }
 
 The array of these elements should be ordered by z-index.
