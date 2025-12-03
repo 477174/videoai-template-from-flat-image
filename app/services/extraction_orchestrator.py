@@ -33,14 +33,15 @@ class ExtractionOrchestrator:
         extracted_elements: list[ExtractedElement] = []
         iteration = 1
 
+        # Initial element description - only done once
+        elements_description = await gpt_service.describe_elements(image_state)
+
+        if not elements_description:
+            return []
+
+        debug.save_elements_description(elements_description, iteration)
+
         while True:
-            elements_description = await gpt_service.describe_elements(image_state)
-
-            if not elements_description:
-                break
-
-            debug.save_elements_description(elements_description, iteration)
-
             if len(elements_description) == 1:
                 iter_dir = debug.start_iteration(iteration)
                 debug.save_image_state(image_state, iter_dir)
@@ -99,7 +100,19 @@ class ExtractionOrchestrator:
             )
             debug.save_after_removal(image_state, iter_dir)
 
+            # Remove the processed element from the list
+            remaining_elements = elements_description[:-1]
+
+            if not remaining_elements:
+                break
+
+            # Update references for remaining elements based on new image state
+            elements_description = await gpt_service.update_element_references(
+                image_state, remaining_elements
+            )
+
             iteration += 1
+            debug.save_elements_description(elements_description, iteration)
 
         result = list(reversed(extracted_elements))
 
