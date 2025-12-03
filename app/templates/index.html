@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automatic Template Generation - Test Page</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .upload-section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 20px;
+        }
+
+        .upload-area:hover {
+            border-color: #007bff;
+            background: #f8f9ff;
+        }
+
+        .upload-area.dragover {
+            border-color: #007bff;
+            background: #e8f0ff;
+        }
+
+        .upload-area input[type="file"] {
+            display: none;
+        }
+
+        .upload-area p {
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .upload-area .icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .preview-image {
+            max-width: 300px;
+            max-height: 200px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .btn:hover {
+            background: #0056b3;
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            color: #666;
+        }
+
+        .loading.active {
+            display: flex;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results-section {
+            display: none;
+            gap: 20px;
+        }
+
+        .results-section.active {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        @media (max-width: 900px) {
+            .results-section.active {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .result-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .result-card h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .json-output {
+            width: 100%;
+            height: 400px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 12px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            resize: vertical;
+            background: #fafafa;
+        }
+
+        .preview-container {
+            position: relative;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            background: repeating-conic-gradient(#f0f0f0 0% 25%, white 0% 50%) 50% / 20px 20px;
+            min-height: 200px;
+        }
+
+        .preview-wrapper {
+            position: relative;
+            margin: 0 auto;
+        }
+
+        .extracted-element {
+            position: absolute;
+            transition: all 0.3s;
+        }
+
+        .extracted-element:hover {
+            outline: 2px solid #007bff;
+            z-index: 1000 !important;
+        }
+
+        .extracted-element img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .element-tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .extracted-element:hover .element-tooltip {
+            opacity: 1;
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c00;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .error-message.active {
+            display: block;
+        }
+
+        .stats {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .copy-btn {
+            background: #28a745;
+            margin-left: 10px;
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+
+        .copy-btn:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Automatic Template Generation</h1>
+
+        <div class="upload-section">
+            <div class="upload-area" id="uploadArea">
+                <div class="icon">📁</div>
+                <p>Drag and drop an image here, or click to select</p>
+                <p style="font-size: 12px; color: #999;">Supports PNG, JPEG, WebP, GIF</p>
+                <input type="file" id="fileInput" accept="image/*">
+                <img class="preview-image" id="previewImage" style="display: none;">
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <button class="btn" id="extractBtn" disabled>Extract Elements</button>
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <span>Extracting elements... This may take a while.</span>
+                </div>
+            </div>
+
+            <div class="error-message" id="errorMessage"></div>
+        </div>
+
+        <div class="results-section" id="resultsSection">
+            <div class="result-card">
+                <h2>
+                    JSON Output
+                    <button class="btn copy-btn" id="copyBtn">Copy JSON</button>
+                </h2>
+                <textarea class="json-output" id="jsonOutput" readonly></textarea>
+                <div class="stats" id="stats"></div>
+            </div>
+
+            <div class="result-card">
+                <h2>Visual Preview</h2>
+                <div class="preview-container" id="previewContainer">
+                    <div class="preview-wrapper" id="previewWrapper"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const previewImage = document.getElementById('previewImage');
+        const extractBtn = document.getElementById('extractBtn');
+        const loading = document.getElementById('loading');
+        const errorMessage = document.getElementById('errorMessage');
+        const resultsSection = document.getElementById('resultsSection');
+        const jsonOutput = document.getElementById('jsonOutput');
+        const previewWrapper = document.getElementById('previewWrapper');
+        const previewContainer = document.getElementById('previewContainer');
+        const stats = document.getElementById('stats');
+        const copyBtn = document.getElementById('copyBtn');
+
+        let selectedFile = null;
+
+        // Drag and drop handlers
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                showError('Please select an image file.');
+                return;
+            }
+
+            selectedFile = file;
+            extractBtn.disabled = false;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImage.src = e.target.result;
+                previewImage.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+
+            hideError();
+        }
+
+        extractBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            extractBtn.disabled = true;
+            loading.classList.add('active');
+            hideError();
+            resultsSection.classList.remove('active');
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            try {
+                const response = await fetch('/api/extract', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to extract elements');
+                }
+
+                const data = await response.json();
+                displayResults(data);
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                extractBtn.disabled = false;
+                loading.classList.remove('active');
+            }
+        });
+
+        function displayResults(data) {
+            // Display JSON
+            jsonOutput.value = JSON.stringify(data, null, 2);
+
+            // Display stats
+            const elements = data.pages[0]?.children || [];
+            stats.innerHTML = `
+                <strong>Design:</strong> ${data.width} x ${data.height}px |
+                <strong>Elements extracted:</strong> ${elements.length}
+            `;
+
+            // Show results section FIRST so container has width
+            resultsSection.classList.add('active');
+
+            // Wait for layout to be computed, then render preview
+            requestAnimationFrame(() => {
+                renderPreview(data);
+            });
+        }
+
+        function renderPreview(data) {
+            const elements = data.pages[0]?.children || [];
+            const containerWidth = previewContainer.clientWidth - 2;
+            const scale = Math.min(1, containerWidth / data.width);
+            const scaledWidth = data.width * scale;
+            const scaledHeight = data.height * scale;
+
+            previewWrapper.style.width = `${scaledWidth}px`;
+            previewWrapper.style.height = `${scaledHeight}px`;
+            previewWrapper.innerHTML = '';
+
+            elements.forEach((element, index) => {
+                const div = document.createElement('div');
+                div.className = 'extracted-element';
+                div.style.left = `${element.x * scale}px`;
+                div.style.top = `${element.y * scale}px`;
+                div.style.width = `${element.width * scale}px`;
+                div.style.height = `${element.height * scale}px`;
+                div.style.zIndex = index;
+
+                const img = document.createElement('img');
+                img.src = element.src;
+                img.alt = element.name;
+
+                const tooltip = document.createElement('div');
+                tooltip.className = 'element-tooltip';
+                tooltip.textContent = `${element.name} (${element.type})`;
+
+                div.appendChild(img);
+                div.appendChild(tooltip);
+                previewWrapper.appendChild(div);
+            });
+        }
+
+        copyBtn.addEventListener('click', () => {
+            jsonOutput.select();
+            document.execCommand('copy');
+            copyBtn.textContent = 'Copied!';
+            setTimeout(() => {
+                copyBtn.textContent = 'Copy JSON';
+            }, 2000);
+        });
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('active');
+        }
+
+        function hideError() {
+            errorMessage.classList.remove('active');
+        }
+    </script>
+</body>
+</html>
