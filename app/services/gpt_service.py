@@ -22,10 +22,20 @@ You should return me a json of the format:
 }"""
 
 ISOLATION_PROMPT_GENERATOR = """
-I wanna tell gemini nano banana to paint completely as black the following object in the image,
-letting it just a silhouette, 
-the prompt should be very precise to avoid gemini inventing new elements instead of painting the existing described one;
-You should be rigid about modifying element's positions or adding new elements that doesn't exists in the image;
+I wanna tell gemini nano banana to paint completely as black the following object in the image and disappear with the rest of the image, letting it just a silhouette in a solid white background;
+
+The prompt should be very precise to avoid gemini inventing new elements instead of painting the existing described one; 
+
+You should be rigid about modifying element's positions or adding new elements that doesn't exists in the image; return me a json with the prompt ({{"prompt": ...}}): :
+
+{element_name}:
+{element_description}"""
+
+REMOVAL_PROMPT_GENERATOR = """
+I wanna tell gemini nano banana to remove the following object from the image,
+redrawing the area where it was to make it look like the element was never there;
+the prompt should be very precise to avoid gemini inventing new elements instead of just removing the existing described one;
+You should be rigid about modifying other element's positions or adding new elements that doesn't exists in the image;
 return me a json with the prompt ({{"prompt": ...}}):
 
 {element_name}:
@@ -96,13 +106,18 @@ class GPTService:
 
         return [ElementDescription(**elem) for elem in elements]
 
-    async def generate_isolation_prompt(self, element: ElementDescription) -> str:
+    async def generate_isolation_prompt(
+        self, element: ElementDescription, image_data: bytes
+    ) -> str:
         """
         Generate a custom Gemini prompt for painting an element solid black.
 
         GPT creates a tailored prompt based on the element's name and description,
-        ensuring Gemini understands exactly what to paint black.
+        along with the actual image for visual context, ensuring Gemini understands
+        exactly what to paint black.
         """
+        base64_image = base64.b64encode(image_data).decode("utf-8")
+
         prompt = ISOLATION_PROMPT_GENERATOR.format(
             element_name=element.name,
             element_description=element.description,
@@ -113,7 +128,15 @@ class GPTService:
             messages=[
                 {
                     "role": "user",
-                    "content": prompt,
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{base64_image}",
+                            },
+                        },
+                    ],
                 }
             ],
             response_format={"type": "json_object"},
@@ -127,6 +150,51 @@ class GPTService:
 
         data = json.loads(content)
         return data.get("prompt", f"Paint the {element.name} completely solid black.")
+
+    async def generate_removal_prompt(
+        self, element: ElementDescription, image_data: bytes
+    ) -> str:
+        """
+        Generate a custom Gemini prompt for creating a mask of an element.
+
+        GPT creates a tailored prompt based on the element's name and description,
+        along with the actual image for visual context, ensuring Gemini understands
+        exactly what to paint black on a white background.
+        """
+        base64_image = base64.b64encode(image_data).decode("utf-8")
+
+        prompt = REMOVAL_PROMPT_GENERATOR.format(
+            element_name=element.name,
+            element_description=element.description,
+        )
+
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{base64_image}",
+                            },
+                        },
+                    ],
+                }
+            ],
+            response_format={"type": "json_object"},
+            max_completion_tokens=512,
+        )
+
+        content = response.choices[0].message.content
+        if not content:
+            # Fallback to a basic prompt if GPT fails
+            return f"Remove the {element.name} from the image and redraw the area."
+
+        data = json.loads(content)
+        return data.get("prompt", f"Remove the {element.name} from the image.")
 
     async def update_element_references(
         self, image_data: bytes, remaining_elements: list[ElementDescription]

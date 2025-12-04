@@ -4,71 +4,47 @@ import io
 import numpy as np
 from PIL import Image
 from scipy import ndimage
-from scipy.ndimage import gaussian_filter
-from skimage.metrics import structural_similarity as ssim
 
 from app.models.schemas import ExtractionResult
 
-# SSIM threshold - lower = less sensitive to minor changes
-# When comparing original vs black silhouette, the change is dramatic
-# so we can use a lower threshold to filter out compression artifacts
-SSIM_THRESHOLD = 0.70
-
-# Gaussian blur sigma to smooth artifacts before comparison
-BLUR_SIGMA = 1.5
+# Threshold for detecting black pixels (0-255)
+# Pixels with all RGB channels below this are considered "black" (part of element)
+BLACK_THRESHOLD = 30
 
 # Minimum size of connected region to keep (filters small noise/artifacts)
-MIN_REGION_SIZE = 200
+MIN_REGION_SIZE = 100
 
 
 class ImageProcessor:
     """Service for pixel comparison and element extraction."""
 
     def extract_element(
-        self, original_data: bytes, modified_data: bytes
+        self, original_data: bytes, mask_data: bytes
     ) -> ExtractionResult:
         """
-        Compare original and modified images using SSIM to extract changed pixels.
+        Extract element pixels using a black-on-white mask.
 
-        Uses Structural Similarity Index (SSIM) which is robust to compression
-        artifacts. When comparing original vs black silhouette, the dramatic
-        color change makes detection reliable.
+        The mask image has:
+        - Black pixels = the element (silhouette)
+        - White pixels = background
+
+        We find black pixels in the mask and extract those pixels from the original.
         """
         original = Image.open(io.BytesIO(original_data)).convert("RGBA")
-        modified = Image.open(io.BytesIO(modified_data)).convert("RGBA")
+        mask_image = Image.open(io.BytesIO(mask_data)).convert("RGB")
 
-        if original.size != modified.size:
-            modified = modified.resize(original.size, Image.Resampling.LANCZOS)
+        if original.size != mask_image.size:
+            mask_image = mask_image.resize(original.size, Image.Resampling.LANCZOS)
 
         original_array = np.array(original)
-        modified_array = np.array(modified)
+        mask_array = np.array(mask_image)
 
-        # Use RGB channels for SSIM comparison (ignore alpha)
-        original_rgb = original_array[:, :, :3].astype(np.float64)
-        modified_rgb = modified_array[:, :, :3].astype(np.float64)
+        # Find black pixels in the mask (element silhouette)
+        # A pixel is "black" if all RGB channels are below threshold
+        is_black = np.all(mask_array < BLACK_THRESHOLD, axis=2)
 
-        # Apply Gaussian blur to reduce artifact sensitivity
-        original_blurred = gaussian_filter(original_rgb, sigma=BLUR_SIGMA)
-        modified_blurred = gaussian_filter(modified_rgb, sigma=BLUR_SIGMA)
-
-        # Calculate SSIM with full difference image on blurred images
-        # Returns per-pixel similarity scores (0-1, where 1 = identical)
-        _, diff = ssim(
-            original_blurred,
-            modified_blurred,
-            full=True,
-            channel_axis=2,
-            data_range=255,
-        )
-
-        # Convert to single channel (average across RGB)
-        diff_gray = np.mean(diff, axis=2)
-
-        # Pixels with low similarity = changed pixels (element painted black)
-        mask = diff_gray < SSIM_THRESHOLD
-
-        # Clean up the mask with morphological operations
-        mask = self._clean_mask(mask)
+        # Clean up the mask
+        mask = self._clean_mask(is_black)
 
         # Create result image with original pixels where mask is True
         result_array = np.zeros_like(original_array)
@@ -83,45 +59,30 @@ class ImageProcessor:
         """
         Clean up the binary mask using morphological operations.
 
-        1. Erode to shrink artifact pixels at edges
-        2. Remove small isolated regions (noise)
-        3. Fill small holes
-        4. Smooth edges
+        1. Remove small isolated regions (noise)
+        2. Fill small holes
         """
         structure = ndimage.generate_binary_structure(2, 2)
 
-        # Initial erosion to shrink artifact pixels
-        eroded_mask = ndimage.binary_erosion(mask, structure, iterations=2)
-
         # Label connected regions
-        labeled, num_features = ndimage.label(eroded_mask)
+        labeled, num_features = ndimage.label(mask)
 
         if num_features == 0:
-            return mask  # Return original if erosion removed everything
+            return mask
 
-        # Remove small regions
+        # Remove small regions (noise)
         cleaned_mask = np.zeros_like(mask)
         for i in range(1, num_features + 1):
             region = labeled == i
             if np.sum(region) >= MIN_REGION_SIZE:
                 cleaned_mask |= region
 
-        # If all regions were too small, try with original mask
+        # If all regions were too small, keep original
         if not np.any(cleaned_mask):
-            labeled, num_features = ndimage.label(mask)
-            for i in range(1, num_features + 1):
-                region = labeled == i
-                if np.sum(region) >= MIN_REGION_SIZE // 2:
-                    cleaned_mask |= region
+            return mask
 
-        # Morphological closing to fill small holes (more iterations)
-        cleaned_mask = ndimage.binary_closing(cleaned_mask, structure, iterations=3)
-
-        # Dilate back to restore size after initial erosion
-        cleaned_mask = ndimage.binary_dilation(cleaned_mask, structure, iterations=2)
-
-        # Final opening to smooth edges
-        cleaned_mask = ndimage.binary_opening(cleaned_mask, structure, iterations=1)
+        # Morphological closing to fill small holes
+        cleaned_mask = ndimage.binary_closing(cleaned_mask, structure, iterations=2)
 
         return cleaned_mask
 

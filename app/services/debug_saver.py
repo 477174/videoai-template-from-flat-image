@@ -50,6 +50,16 @@ class DebugSaver:
         """Save info about element being processed."""
         self._save_json(element.model_dump(), iter_dir / "02_element_info.json")
 
+    def save_isolation_prompt(self, prompt: str, iter_dir: Path) -> None:
+        """Save the GPT-generated isolation prompt for Gemini."""
+        with open(iter_dir / "02b_isolation_prompt.txt", "w") as f:
+            f.write(prompt)
+
+    def save_removal_prompt(self, prompt: str, iter_dir: Path) -> None:
+        """Save the GPT-generated removal prompt for Gemini."""
+        with open(iter_dir / "04b_removal_prompt.txt", "w") as f:
+            f.write(prompt)
+
     def save_black_isolated(self, image_data: bytes, iter_dir: Path) -> None:
         """Save the black-isolated image from Nano Banana."""
         self._save_image(image_data, iter_dir / "03_black_isolated.png")

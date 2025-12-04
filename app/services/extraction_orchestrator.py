@@ -22,9 +22,10 @@ class ExtractionOrchestrator:
         3. GPT generates a custom prompt for Nano Banana to paint element black
         4. Use Nano Banana to create black silhouette with GPT's prompt
         5. Compare original vs silhouette to extract element pixels
-        6. Use Nano Banana to remove the element from the image
-        7. Repeat with the updated image until only 1 element remains
-        8. The last element is the remaining image itself
+        6. GPT generates a custom prompt for Nano Banana to remove the element
+        7. Use Nano Banana to remove the element with GPT's prompt
+        8. Repeat with the updated image until only 1 element remains
+        9. The last element is the remaining image itself
 
         Returns elements in z-index order (bottom to top).
         """
@@ -75,10 +76,11 @@ class ExtractionOrchestrator:
             current_element = elements_description[-1]
             debug.save_element_info(current_element, iter_dir)
 
-            # Generate custom isolation prompt via GPT
+            # Generate custom isolation prompt via GPT (with image context)
             isolation_prompt = await gpt_service.generate_isolation_prompt(
-                current_element
+                current_element, image_state
             )
+            debug.save_isolation_prompt(isolation_prompt, iter_dir)
 
             # Use GPT's prompt to create black silhouette
             black_image = await gemini_service.isolate_element(
@@ -104,9 +106,15 @@ class ExtractionOrchestrator:
                 )
             )
 
-            # Remove element for next iteration
+            # Generate custom removal prompt via GPT (with image context)
+            removal_prompt = await gpt_service.generate_removal_prompt(
+                current_element, image_state
+            )
+            debug.save_removal_prompt(removal_prompt, iter_dir)
+
+            # Remove element for next iteration using GPT's prompt
             image_state = await gemini_service.remove_element(
-                image_state, current_element
+                image_state, removal_prompt
             )
             debug.save_after_removal(image_state, iter_dir)
 
