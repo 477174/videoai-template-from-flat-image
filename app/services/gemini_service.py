@@ -25,23 +25,13 @@ class GeminiService:
             self._client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         return self._client
 
-    async def isolate_element(
-        self, image_data: bytes, element: ElementDescription
-    ) -> bytes:
-        """Put the element in grayscale."""
-
-        prompt = "".join([
-            "In this design I want you to make the following existent element entirely solid black, ",
-            f"in a way it seems just a silhouette, the element is {element.name} ({element.description})."
-        ])
-
-        return await self._edit_image(image_data, prompt)
-
     async def remove_element(
         self, image_data: bytes, element: ElementDescription
     ) -> bytes:
         """Remove the specified element from the image."""
-        prompt = f"Do a little redraw next to the following element and where it is to make it look like the element was removed, the element is: {element.name} ({element.description})"
+        prompt = f"""
+Do a little redraw next to the following element and where it is to make it look like the element was removed, 
+the element is: {element.name} ({element.description})"""
 
         return await self._edit_image(image_data, prompt)
 

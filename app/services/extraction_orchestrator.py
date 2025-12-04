@@ -19,8 +19,8 @@ class ExtractionOrchestrator:
         Process flow:
         1. Analyze image with GPT to get element descriptions (ordered by z-index)
         2. Pick the last element (top z-index)
-        3. Use Nano Banana to turn it black, compare pixels, extract element
-        4. Use Nano Banana to remove the element from the image
+        3. Use Nano Banana to remove the element from the image
+        4. Compare before/after to extract the element pixels
         5. Repeat with the updated image until only 1 element remains
         6. The last element is the remaining image itself
 
@@ -73,12 +73,16 @@ class ExtractionOrchestrator:
             current_element = elements_description[-1]
             debug.save_element_info(current_element, iter_dir)
 
-            black_image = await gemini_service.isolate_element(
+            # Remove element and get new image state (single API call)
+            image_after_removal = await gemini_service.remove_element(
                 image_state, current_element
             )
-            debug.save_black_isolated(black_image, iter_dir)
+            debug.save_after_removal(image_after_removal, iter_dir)
 
-            extracted = image_processor.extract_element(image_state, black_image)
+            # Compare before/after to extract the element pixels
+            extracted = image_processor.extract_element(
+                image_state, image_after_removal
+            )
             debug.save_extracted_element(extracted, iter_dir)
 
             extracted_elements.append(
@@ -95,10 +99,8 @@ class ExtractionOrchestrator:
                 )
             )
 
-            image_state = await gemini_service.remove_element(
-                image_state, current_element
-            )
-            debug.save_after_removal(image_state, iter_dir)
+            # Update image state for next iteration
+            image_state = image_after_removal
 
             # Remove the processed element from the list
             remaining_elements = elements_description[:-1]

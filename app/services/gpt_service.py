@@ -7,33 +7,38 @@ from openai import AsyncOpenAI
 from app.models.schemas import ElementDescription
 
 ELEMENT_DESCRIPTION_PROMPT = """
-You're a very experient designer and I want you to describe for me all the layers you see in this design:
-I want you to return to me a json containing all images that was used in the construction of this design.
-You can't be that granular, the elements or group of elements you're going to describe should be chosen by them semantic role in the design.
-Before choosing an element or a group of elements you should think "is this something relevant for a regular user to be able to edit later?".
+Describe very granularly every single element you see in this image, even if you see any package/group, each element in this package/group should have it's own place in the array; 
 
-
-{
-  "type": "image" | "shape" | "background",
-  "name": "A very intuitive name for the element",
-  "description": "This description should be very clear about what and where is the element in the image, should detail exactly what belongs to the element and what not, so later the element can be identified easily in the image. It should include position, colors, size, relation to other elements, etc."
-}
-
-The array of these elements should be ordered by z-index.
-
-IMPORTANT: Return ONLY a valid JSON object with a single key "elements" containing the array. Example:
-{"elements": [{"type": "background", "name": "...", "description": "..."}, ...]}"""
+You should return me a json of the format: 
+{ 
+	"elements": [ 
+		{ 
+			"type": "image" | "shape" | "background", 
+			"name": "A very intuitive name for the element or composition", 
+			"description": "This description should descript exact what composes the object, every element on it, to prevent misunderstanding when extracting it. You should describe perfectly where it is located too." 
+		}, 
+		... 
+	] 
+}"""
 
 UPDATE_REFERENCES_PROMPT = """
-You're a very experient designer. I have a design where one element was removed.
-I need you to update the descriptions of the remaining elements based on how they now appear in the image.
+You should see this design like if it was a real life sight where one object was removed.
+I need you to verify which objects from the list below are STILL VISIBLE in the current image.
 
-The elements we still have (that were NOT removed) are:
+The objects we expect to still have are:
 {elements_json}
 
-Please look at the current image and update the "description" field for each element to accurately reflect its current position and appearance in the image. The "type" and "name" should remain the same.
+Please look at the current image carefully and:
+1. REMOVE any object from the list that is NO LONGER VISIBLE in the image
+2. UPDATE the "description" field for each remaining object to reflect its current appearance and location
 
-IMPORTANT: Return ONLY a valid JSON object with a single key "elements" containing the updated array. Keep the same order.
+IMPORTANT:
+- If an object is not visible anymore, DO NOT include it in the response
+- The "type" and "name" should remain the same for objects that are still visible
+- Keep the ordering by distance from camera (far to near)
+- The description should describe exactly what composes the object and where it is located
+- Return ONLY a valid JSON object with a single key "elements" containing the array of VISIBLE objects only
+
 Example: {{"elements": [{{"type": "background", "name": "...", "description": "updated description..."}}, ...]}}"""
 
 
@@ -129,9 +134,10 @@ class GPTService:
         data = json.loads(content)
         elements = data.get("elements", [])
 
-        # Validate we got the same number of elements back
-        if len(elements) != len(remaining_elements):
-            # If mismatch, return original elements
+        # GPT may have removed elements that are no longer visible
+        # This is expected behavior - don't validate count
+        if not elements:
+            # If no elements returned, something went wrong - return original
             return remaining_elements
 
         return [ElementDescription(**elem) for elem in elements]
