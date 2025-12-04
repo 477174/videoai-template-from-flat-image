@@ -106,9 +106,9 @@ class ExtractionOrchestrator:
                 )
             )
 
-            # Generate custom removal prompt via GPT (with image context)
+            # Generate custom removal prompt via GPT (with image and mask context)
             removal_prompt = await gpt_service.generate_removal_prompt(
-                current_element, image_state
+                current_element, image_state, black_image
             )
             debug.save_removal_prompt(removal_prompt, iter_dir)
 

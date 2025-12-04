@@ -7,32 +7,40 @@ from openai import AsyncOpenAI
 from app.models.schemas import ElementDescription
 
 ELEMENT_DESCRIPTION_PROMPT = """
-Describe very every single element you see in this image; 
+You're a very experient designer and I want you to describe for me all the layers you see in this design: 
 
-You should return me a json of the format: 
+I want you to return to me a json containing all images that was used in the construction of this design;
+
+You can't be that granular, the elements or group of elements you're going to describe should be chosen by them semantic role in the design;
+
+Before choosing an element or a group of elements you should think "is this something relevant for a regular user to be able to edit later?";
 { 
-	"elements": [ 
-		{ 
-			"type": "image" | "shape" | "background", 
-			"name": "A very intuitive name for the element or composition", 
-			"description": "This description should descript exact what composes the object, every element on it, to prevent misunderstanding when extracting it. You should describe perfectly where it is located too." 
-		}, 
-		... 
-	] 
-}"""
+    "type": "image" | "shape" | "background", 
+    "name": "A very intuitive name for the element", 
+    "description": "A very detailed description about how, what and where is the element in the image" 
+} 
+The array of these elements should be ordered by z-index; 
+IMPORTANT: Return ONLY a valid JSON object with a single key "elements" containing the array; 
+Example: {"elements": [{"type": "background", "name": "...", "description": "..."}, ...]}"""
 
 ISOLATION_PROMPT_GENERATOR = """
 I wanna tell gemini nano banana to paint completely as black the following object in the image and disappear with the rest of the image, letting it just a silhouette in a solid white background;
 
 The prompt should be very precise to avoid gemini inventing new elements instead of painting the existing described one; 
 
-You should be rigid about modifying element's positions or adding new elements that doesn't exists in the image; return me a json with the prompt ({{"prompt": ...}}): :
+You should be extremely rigid about keeping the black element in the exact position, size and shape, should be a perfect silhouette of the existing element;
+
+Return me a json with the prompt ({{"prompt": ...}}): :
 
 {element_name}:
 {element_description}"""
 
 REMOVAL_PROMPT_GENERATOR = """
-I wanna tell gemini nano banana to remove the following object from the image,
+I'm providing you two images:
+1. The first image is the current design
+2. The second image is a mask where the element to be removed is shown as a black silhouette on white background
+
+I wanna tell gemini nano banana to remove the element shown in the mask from the first image,
 redrawing the area where it was to make it look like the element was never there;
 the prompt should be very precise to avoid gemini inventing new elements instead of just removing the existing described one;
 You should be rigid about modifying other element's positions or adding new elements that doesn't exists in the image;
@@ -152,16 +160,18 @@ class GPTService:
         return data.get("prompt", f"Paint the {element.name} completely solid black.")
 
     async def generate_removal_prompt(
-        self, element: ElementDescription, image_data: bytes
+        self, element: ElementDescription, image_data: bytes, mask_data: bytes
     ) -> str:
         """
-        Generate a custom Gemini prompt for creating a mask of an element.
+        Generate a custom Gemini prompt for removing an element.
 
         GPT creates a tailored prompt based on the element's name and description,
-        along with the actual image for visual context, ensuring Gemini understands
-        exactly what to paint black on a white background.
+        along with:
+        - The current image state
+        - The mask showing the element as black silhouette on white background
         """
         base64_image = base64.b64encode(image_data).decode("utf-8")
+        base64_mask = base64.b64encode(mask_data).decode("utf-8")
 
         prompt = REMOVAL_PROMPT_GENERATOR.format(
             element_name=element.name,
@@ -179,6 +189,12 @@ class GPTService:
                             "type": "image_url",
                             "image_url": {
                                 "url": f"data:image/png;base64,{base64_image}",
+                            },
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{base64_mask}",
                             },
                         },
                     ],
