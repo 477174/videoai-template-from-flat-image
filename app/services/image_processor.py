@@ -10,7 +10,8 @@ from skimage.metrics import structural_similarity as ssim
 from app.models.schemas import ExtractionResult
 
 # SSIM threshold - lower = less sensitive to minor changes
-# 0.70 means only pixels with < 70% similarity are considered "changed"
+# When comparing original vs black silhouette, the change is dramatic
+# so we can use a lower threshold to filter out compression artifacts
 SSIM_THRESHOLD = 0.70
 
 # Gaussian blur sigma to smooth artifacts before comparison
@@ -27,11 +28,11 @@ class ImageProcessor:
         self, original_data: bytes, modified_data: bytes
     ) -> ExtractionResult:
         """
-        Compare original and modified images using SSIM, extract changed pixels.
+        Compare original and modified images using SSIM to extract changed pixels.
 
         Uses Structural Similarity Index (SSIM) which is robust to compression
-        artifacts and minor quality differences. Finds regions that structurally
-        differ between the two images.
+        artifacts. When comparing original vs black silhouette, the dramatic
+        color change makes detection reliable.
         """
         original = Image.open(io.BytesIO(original_data)).convert("RGBA")
         modified = Image.open(io.BytesIO(modified_data)).convert("RGBA")
@@ -63,7 +64,7 @@ class ImageProcessor:
         # Convert to single channel (average across RGB)
         diff_gray = np.mean(diff, axis=2)
 
-        # Pixels with low similarity = changed pixels
+        # Pixels with low similarity = changed pixels (element painted black)
         mask = diff_gray < SSIM_THRESHOLD
 
         # Clean up the mask with morphological operations

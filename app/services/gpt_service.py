@@ -7,7 +7,7 @@ from openai import AsyncOpenAI
 from app.models.schemas import ElementDescription
 
 ELEMENT_DESCRIPTION_PROMPT = """
-Describe very granularly every single element you see in this image, even if you see any package/group, each element in this package/group should have it's own place in the array; 
+Describe very every single element you see in this image; 
 
 You should return me a json of the format: 
 { 
@@ -20,6 +20,16 @@ You should return me a json of the format:
 		... 
 	] 
 }"""
+
+ISOLATION_PROMPT_GENERATOR = """
+I wanna tell gemini nano banana to paint completely as black the following object in the image,
+letting it just a silhouette, 
+the prompt should be very precise to avoid gemini inventing new elements instead of painting the existing described one;
+You should be rigid about modifying element's positions or adding new elements that doesn't exists in the image;
+return me a json with the prompt ({{"prompt": ...}}):
+
+{element_name}:
+{element_description}"""
 
 UPDATE_REFERENCES_PROMPT = """
 You should see this design like if it was a real life sight where one object was removed.
@@ -85,6 +95,38 @@ class GPTService:
         elements = data.get("elements", [])
 
         return [ElementDescription(**elem) for elem in elements]
+
+    async def generate_isolation_prompt(self, element: ElementDescription) -> str:
+        """
+        Generate a custom Gemini prompt for painting an element solid black.
+
+        GPT creates a tailored prompt based on the element's name and description,
+        ensuring Gemini understands exactly what to paint black.
+        """
+        prompt = ISOLATION_PROMPT_GENERATOR.format(
+            element_name=element.name,
+            element_description=element.description,
+        )
+
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+            response_format={"type": "json_object"},
+            max_completion_tokens=512,
+        )
+
+        content = response.choices[0].message.content
+        if not content:
+            # Fallback to a basic prompt if GPT fails
+            return f"Paint the {element.name} completely solid black, making it a silhouette."
+
+        data = json.loads(content)
+        return data.get("prompt", f"Paint the {element.name} completely solid black.")
 
     async def update_element_references(
         self, image_data: bytes, remaining_elements: list[ElementDescription]

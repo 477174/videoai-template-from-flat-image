@@ -50,9 +50,9 @@ class DebugSaver:
         """Save info about element being processed."""
         self._save_json(element.model_dump(), iter_dir / "02_element_info.json")
 
-    def save_after_removal(self, image_data: bytes, iter_dir: Path) -> None:
-        """Save image after element removal."""
-        self._save_image(image_data, iter_dir / "03_after_removal.png")
+    def save_black_isolated(self, image_data: bytes, iter_dir: Path) -> None:
+        """Save the black-isolated image from Nano Banana."""
+        self._save_image(image_data, iter_dir / "03_black_isolated.png")
 
     def save_extracted_element(
         self, result: ExtractionResult, iter_dir: Path
@@ -74,6 +74,10 @@ class DebugSaver:
             "height": result.height,
         }
         self._save_json(metadata, iter_dir / "04_extracted_metadata.json")
+
+    def save_after_removal(self, image_data: bytes, iter_dir: Path) -> None:
+        """Save image after element removal."""
+        self._save_image(image_data, iter_dir / "05_after_removal.png")
 
     def save_final_result(self, result: dict) -> None:
         """Save the final Polotno JSON result."""
