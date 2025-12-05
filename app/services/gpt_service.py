@@ -9,8 +9,11 @@ from app.models.schemas import ElementDescription
 ELEMENT_DESCRIPTION_PROMPT = """
 Imagine that every element in the image has it's own z-index. 
 
-Return me a json in the following format with the element that has the biggest z-index, the one closest to the camera: 
+Return me the element that has the biggest z-index, the one closest to the camera;
 
+Don't choose elements that aren't too distinctive;
+
+Return me a json in the following format:
 { 
 	"type": "image" | "shape" | "background", 
 	"name": "A very intuitive name for the element", 
@@ -34,11 +37,11 @@ I'm providing you two images:
 1. The first image is the current design
 2. The second image is a mask where the element to be removed is shown as a black silhouette on white background
 
-I want you to generate a prompt for gemini nano banana telling it to remove the objects that would be under the mask if they were overlayed on top of the first image;
+Your task is to generate a detailed prompt for gemini nano banana to remove every single element that is behind this mask, and redraw on the are under it;
 
-You should be extremely rigid about keeping the rest of the image intact, only removing and redrawing the area under the black silhouette;
+You should know that gemini will receive only the original image (1), only you have access to the mask (2) to generate the prompt;
 
-The gemini doesn't have access to the mask and doesn't know the existance of it so you should be extremely detailed when describing what's under it, otherwise gemini may misunderstand and remove wrong elements;
+You should be EXTREMELY EXTREMELY rigid about keeping the rest of the image intact, only redraw what is under the mask;
 """
 
 

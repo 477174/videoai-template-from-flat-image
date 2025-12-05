@@ -54,6 +54,7 @@ class GeminiService:
                     contents=[prompt, image],
                     config=types.GenerateContentConfig(
                         response_modalities=["IMAGE"],
+                        temperature=0,
                     ),
                 )
 
